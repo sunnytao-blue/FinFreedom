@@ -64,6 +64,10 @@ class FamilyFinance:
     mortgage_balance: float = 0.0
     car_loan_balance: float = 0.0
     other_liabilities: float = 0.0
+    mortgage_monthly: float = 0.0
+    mortgage_years: int = 0
+    car_loan_monthly: float = 0.0
+    car_loan_years: int = 0
 
     @property
     def total_assets(self) -> float:
@@ -190,6 +194,8 @@ class SimulationYear:
     other_income: float
     total_income: float
     living_expense: float
+    mortgage_expense: float
+    car_loan_expense: float
     education_expense: float
     emergency_expense: float
     total_expense: float

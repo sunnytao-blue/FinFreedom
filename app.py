@@ -25,10 +25,11 @@ if "initialized" not in st.session_state:
     st.session_state.initialized = True
     st.session_state.input_data = load_config()
     st.session_state.result = None
+    st.session_state.widget_ver = 0
 
 # ======== 主界面 ========
-st.title("💰 财务自由模拟评估系统")
-st.markdown("---")
+st.markdown('<h1>💰 财务自由模拟评估系统 <small style="font-size:0.35em;color:gray;font-weight:normal">v1.1 · 2026-06-08</small></h1>', unsafe_allow_html=True)
+st.markdown('<hr style="margin:0.5rem 0 0.5rem 0">', unsafe_allow_html=True)
 
 # ======== 侧边栏输入 ========
 with st.sidebar:
@@ -59,7 +60,7 @@ else:
     if result is not None:
         render_dashboard(result, input_data)
 
-        st.markdown("---")
+        st.markdown('<hr style="margin:0.8rem 0 0.5rem 0">', unsafe_allow_html=True)
 
         # 底部操作区
         col1, col2, col3, col4 = st.columns(4)
@@ -94,6 +95,7 @@ else:
             if uploaded is not None:
                 try:
                     data = json.load(uploaded)
+                    st.session_state.widget_ver += 1
                     st.session_state.input_data = InputData.from_dict(data["input"])
                     st.session_state.result = SimulationResult.from_dict(data["result"])
                     st.rerun()

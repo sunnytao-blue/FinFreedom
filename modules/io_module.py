@@ -28,15 +28,19 @@ def default_input_data() -> InputData:
             cash=50_000.0,
             fund_value=50_000.0,
             stock_value=100_000.0,
-            property_value=3_000_000.0,
+            property_value=2_000_000.0,
             car_value=200_000.0,
             other_assets=100_000.0,
+            mortgage_monthly=3_000.0,
+            mortgage_years=20,
+            car_loan_monthly=2_000.0,
+            car_loan_years=3,
         ),
         income=Income(
             salary_annual=0.0,
             dividend_annual=150_000.0,
         ),
-        monthly_expense=15_000.0,
+        monthly_expense=10_000.0,
         children=[
             Child(
                 current_age=5,
@@ -49,7 +53,7 @@ def default_input_data() -> InputData:
                 graduation_sponsorship=200_000.0,
             ),
         ],
-        emergency_reserve=EmergencyReserve(amount=100_000.0, mode="一次性扣除"),
+        emergency_reserve=EmergencyReserve(amount=200_000.0, mode="逐年均摊"),
         params=EconParams(inflation_rate=0.02, asset_return_rate=0.02),
     )
 
@@ -57,7 +61,7 @@ def default_input_data() -> InputData:
 # ======== 参数持久化 ========
 def save_config(input_data: InputData, path: str = CONFIG_PATH):
     payload = {
-        "version": "1.0",
+        "version": "1.1",
         "save_time": datetime.now().isoformat(),
         "input": input_data.to_dict(),
     }
@@ -79,7 +83,7 @@ def load_config(path: str = CONFIG_PATH) -> InputData:
 # ======== 结果保存与加载 ========
 def build_params_json(input_data: InputData) -> str:
     payload = {
-        "version": "1.0",
+        "version": "1.1",
         "save_time": datetime.now().isoformat(),
         "input": input_data.to_dict(),
     }
@@ -88,7 +92,7 @@ def build_params_json(input_data: InputData) -> str:
 
 def build_result_json(input_data: InputData, result: SimulationResult) -> str:
     payload = {
-        "version": "1.0",
+        "version": "1.1",
         "save_time": datetime.now().isoformat(),
         "input": input_data.to_dict(),
         "result": result.to_dict(),
@@ -109,6 +113,8 @@ def export_csv(years: list[SimulationYear]) -> bytes:
             "其他收入": y.other_income,
             "收入合计": y.total_income,
             "生活支出": y.living_expense,
+            "房贷支出": y.mortgage_expense,
+            "车贷支出": y.car_loan_expense,
             "教育支出": y.education_expense,
             "意外支出": y.emergency_expense,
             "支出合计": y.total_expense,
@@ -133,6 +139,8 @@ def export_excel(years: list[SimulationYear]) -> bytes:
             "其他收入": y.other_income,
             "收入合计": y.total_income,
             "生活支出": y.living_expense,
+            "房贷支出": y.mortgage_expense,
+            "车贷支出": y.car_loan_expense,
             "教育支出": y.education_expense,
             "意外支出": y.emergency_expense,
             "支出合计": y.total_expense,

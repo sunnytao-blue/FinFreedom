@@ -100,7 +100,8 @@ app.py 从头执行
 | `"initialized"` | `bool` | 标记是否完成首次初始化 | 应用启动 |
 | `"input_data"` | `InputData` | 当前所有输入数据 | 加载 config 后 |
 | `"result"` | `SimulationResult` 或 `None` | 最新计算结果 | 每次计算后 |
-| `"force_recalc"` | `bool` | 恢复默认值后强制重算标记 | 恢复默认值时 |
+| `"force_recalc"` | `bool` | 已废弃（v1.1 改用 widget_ver） | — |
+| `"widget_ver"` | `int` | 小部件 key 版本号（递增后强制小部件刷新） | 应用启动 |
 | `"sidebar_upload_key"` | `int` | 文件上传器刷新计数器 | 加载参数后 |
 
 ### 2.2 初始化代码结构
@@ -112,6 +113,7 @@ def init_session_state():
         st.session_state.input_data = load_config()
         st.session_state.result = None
         st.session_state.force_recalc = False
+        st.session_state.widget_ver = 0
         st.session_state.sidebar_upload_key = 0
 ```
 
@@ -176,6 +178,10 @@ class FamilyFinance:
     mortgage_balance: float = 0.0
     car_loan_balance: float = 0.0
     other_liabilities: float = 0.0
+    mortgage_monthly: float = 0.0
+    mortgage_years: int = 0
+    car_loan_monthly: float = 0.0
+    car_loan_years: int = 0
 
     @property
     def total_assets(self) -> float:
@@ -238,6 +244,8 @@ class SimulationYear:
     other_income: float
     total_income: float
     living_expense: float
+    mortgage_expense: float
+    car_loan_expense: float
     education_expense: float
     emergency_expense: float
     total_expense: float
@@ -331,14 +339,13 @@ def render_sidebar() -> InputData:
     col1, col2 = st.columns(2)
     with col1:
         if st.button("\U0001F504 恢复默认值", help="将所有参数重置为出厂默认值"):
-            from modules.io_module import default_input_data
-            keys_to_keep = {"initialized", "sidebar_upload_key"}
-            for key in list(st.session_state.keys()):
-                if key not in keys_to_keep:
-                    del st.session_state[key]
+            from modules.io_module import CONFIG_PATH, default_input_data
+            import os
+            if os.path.exists(CONFIG_PATH):
+                os.remove(CONFIG_PATH)
+            st.session_state.widget_ver += 1       # 递增使所有小部件 key 变化 → 强制刷新
             st.session_state.input_data = default_input_data()
             st.session_state.result = None
-            st.session_state.force_recalc = True
             st.rerun()
     with col2:
         if st.button("\U0001F522 重新计算"):
@@ -352,7 +359,7 @@ def render_sidebar() -> InputData:
         st.download_button(
             "\U0001F4BE 保存参数",
             data=params_json,
-            file_name=f"参数_{datetime.now():%Y%m%d}.json",
+            file_name=f"参数_{datetime.now():%Y%m%d_%H%M%S}.json",
             mime="application/json",
             key="sidebar_save_params",
         )
@@ -366,6 +373,7 @@ def render_sidebar() -> InputData:
         if uploaded is not None:
             try:
                 data = json.load(uploaded)
+                st.session_state.widget_ver += 1    # 递增使小部件使用导入值
                 st.session_state.input_data = InputData.from_dict(data.get("input", data))
                 st.session_state.result = None
                 st.session_state.sidebar_upload_key += 1
@@ -501,13 +509,23 @@ def run_simulation(input_data: InputData) -> SimulationResult:
         # --- 支出计算 ---
         living_exp = input_data.monthly_expense * 12 * inflation_factor
 
+        # 房贷月供（年限内有效）
+        mortgage_annual = 0.0
+        if t < input_data.finance.mortgage_years:
+            mortgage_annual = input_data.finance.mortgage_monthly * 12 * inflation_factor
+
+        # 车贷月供（年限内有效）
+        car_loan_annual = 0.0
+        if t < input_data.finance.car_loan_years:
+            car_loan_annual = input_data.finance.car_loan_monthly * 12 * inflation_factor
+
         # 小孩教育（含通胀调整）
         edu_exp = calculate_education_expense(input_data.children, age1, t) * inflation_factor
 
         # 意外
         emerg_exp = emergency_one_time if (t == 0 and emergency_one_time > 0) else emergency_annual
 
-        total_expense = living_exp + edu_exp + emerg_exp
+        total_expense = living_exp + mortgage_annual + car_loan_annual + edu_exp + emerg_exp
 
         # --- 净资产 ---
         net_worth_start = net_worth   # 更新前捕获年初值
@@ -523,6 +541,8 @@ def run_simulation(input_data: InputData) -> SimulationResult:
             other_income=other_inc * inflation_factor,
             total_income=total_income,
             living_expense=living_exp,
+            mortgage_expense=mortgage_annual,
+            car_loan_expense=car_loan_annual,
             education_expense=edu_exp,
             emergency_expense=emerg_exp,
             total_expense=total_expense,
@@ -657,6 +677,11 @@ def render_yearly_table(years: list[SimulationYear]):
             "年份": y.year,
             "年龄": y.person1_age,
             "配偶年龄": y.person2_age if y.person2_age else "—",
+            "生活支出": y.living_expense,
+            "房贷支出": y.mortgage_expense,
+            "车贷支出": y.car_loan_expense,
+            "教育支出": y.education_expense,
+            "意外支出": y.emergency_expense,
             "收入合计": y.total_income,
             "支出合计": y.total_expense,
             "净现金流": y.net_cashflow,
@@ -696,7 +721,7 @@ CONFIG_PATH = _os.path.join(_os.path.expanduser("~"), ".finfreedom_config.json")
 def save_config(input_data: InputData, path: str = CONFIG_PATH):
     """将输入参数保存到本地 JSON 文件（含 version 字段用于未来迁移）"""
     payload = {
-        "version": "1.0",
+        "version": "1.1",
         "save_time": datetime.now().isoformat(),
         "input": input_data.to_dict(),
     }
@@ -727,15 +752,19 @@ def default_input_data() -> InputData:
             cash=50_000.0,
             fund_value=50_000.0,
             stock_value=100_000.0,
-            property_value=3_000_000.0,
+            property_value=2_000_000.0,
             car_value=200_000.0,
             other_assets=100_000.0,
+            mortgage_monthly=3_000.0,
+            mortgage_years=20,
+            car_loan_monthly=2_000.0,
+            car_loan_years=3,
         ),
         income=Income(
             salary_annual=0.0,
             dividend_annual=150_000.0,
         ),
-        monthly_expense=15_000.0,
+        monthly_expense=10_000.0,
         children=[
             Child(
                 current_age=5,
@@ -748,7 +777,7 @@ def default_input_data() -> InputData:
                 graduation_sponsorship=200_000.0,
             ),
         ],
-        emergency_reserve=EmergencyReserve(amount=100_000.0, mode="一次性扣除"),
+        emergency_reserve=EmergencyReserve(amount=200_000.0, mode="逐年均摊"),
         params=EconParams(inflation_rate=0.02, asset_return_rate=0.02),
     )
 
@@ -756,7 +785,7 @@ def default_input_data() -> InputData:
 def save_result_download(input_data: InputData, result: SimulationResult) -> str:
     """生成完整结果 JSON 字符串（供 st.download_button 使用）"""
     payload = {
-        "version": "1.0",
+        "version": "1.1",
         "save_time": datetime.now().isoformat(),
         "input": input_data_to_dict(input_data),
         "result": result_to_dict(result),
@@ -883,6 +912,7 @@ if "initialized" not in st.session_state:
     st.session_state.initialized = True
     st.session_state.input_data = load_config() or default_input_data()
     st.session_state.result = None
+    st.session_state.widget_ver = 0
 
 # ─── 主界面标题 ───
 st.title("💰 财务自由模拟评估系统")
@@ -931,6 +961,7 @@ else:
             uploaded = st.file_uploader("📂 加载结果", type=["json"])
             if uploaded:
                 data = json.load(uploaded)
+                st.session_state.widget_ver += 1
                 st.session_state.input_data = dict_to_input_data(data["input"])
                 st.session_state.result = dict_to_result(data["result"])
                 st.rerun()
@@ -1034,7 +1065,7 @@ FinFreedom/
 │   └── helpers.py            # 工具函数
 ├── build/                    # PyInstaller 构建中间产物
 └── dist/
-    └── 财务自由评估/         # PyInstaller onedir 打包产物
+    └── 财务自由评估.exe    # PyInstaller onefile 打包产物
 ```
 
 ### 6.1 各文件职责
@@ -1069,18 +1100,18 @@ openpyxl>=3.1
 
 ## 9. 打包发布
 
-使用 PyInstaller `onedir` 模式，入口为 `launcher.py`，配置在 `FinFreedom.spec`。
+使用 PyInstaller `onefile` 模式，入口为 `launcher.py`，配置在 `FinFreedom.spec`。
 
 **关键配置要点：**
 - `collect_data_files('streamlit')` — 打包前端静态文件（缺失则页面 Not Found）
 - `collect_submodules('streamlit')` — 递归收集所有 Streamlit 子模块（缺失则 ModuleNotFoundError）
 - `copy_metadata(...)` — 各依赖包的 dist-info（缺失则 PackageNotFoundError）
 - 显式添加 conda 环境缺失 DLL（libcrypto, libssl, sqlite3 等）
-- `COLLECT` 块实现 onedir 模式（onefile 模式 Streamlit 页面 Not Found）
+- `EXE` 块实现 onefile 模式（`COLLECT` 块已移除）
 - 端口固定 3568，环境变量 `STREAMLIT_GLOBAL_DEVELOPMENT_MODE=false`
 
 **一键重打包：** `重打包.bat` 或 `python -m PyInstaller --clean --noconfirm FinFreedom.spec`
 
-产物为 `dist/财务自由评估/` 文件夹，分发整个文件夹即可。
+产物为 `dist/财务自由评估.exe`（单文件约 82 MB）。
 
 详见 `package-exe.md`。

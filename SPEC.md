@@ -60,7 +60,7 @@
 | 现金（万元）| 数字 | 5 | 手头现金 |
 | 基金市值（万元）| 数字 | 5 | 基金当前总市值 |
 | 股票市值（万元）| 数字 | 10 | 股票当前总市值 |
-| 房产估值（万元）| 数字 | 300 | 自住房产当前估值 |
+| 房产估值（万元）| 数字 | 200 | 自住房产当前估值 |
 | 车辆估值（万元）| 数字 | 20 | 车辆当前估值 |
 | 其他资产（万元）| 数字 | 10 | 其他可变现资产 |
 | **总资产** | 自动计算 | — | = 以上各项之和 |
@@ -84,8 +84,11 @@
 
 | 字段 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
-| 月生活消费 | 数字 | 15,000 | 家庭月均生活开销 |
-| **年生活消费** | 自动计算 | — | = 月生活消费 × 12 |
+| 月生活消费 | 数字 | 10,000 | 家庭月均生活开销 |
+| 月房贷还款 | 数字 | 3,000 | 每月房贷还款额 |
+| 房贷剩余年限 | 数字 | 20 | 剩余还款年数，年限内每年计入 |
+| 月车贷还款 | 数字 | 2,000 | 每月车贷还款额 |
+| 车贷剩余年限 | 数字 | 3 | 剩余还款年数，年限内每年计入 |
 
 #### 3.1.5 小孩抚养
 
@@ -114,7 +117,7 @@
 
 | 字段 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
-| 意外预留总额（万元）| 数字 | 10 | 整个周期预留的意外备用金 |
+| 意外预留总额（万元）| 数字 | 20 | 整个周期预留的意外备用金 |
 | 分摊方式 | 下拉选择 | 一次性扣除 | 一次性扣除 / 逐年均摊 |
 
 - **一次性扣除**：第一年从净资产中直接扣除该金额
@@ -142,10 +145,10 @@
   - 通胀系数 = (1 + 通胀率)^t
   - **当年总收入** = (工资收入×退休标记 + 房租+分红+其他) × 通胀系数
     - 退休标记 = 1 若当前年龄 < 退休年龄，否则 0
-  - **当年总支出** = (年生活消费 + 小孩教育支出) × 通胀系数 + 意外预留年分摊额
+  - **当年总支出** = (年生活消费 + 年房贷还款 + 年车贷还款 + 小孩教育支出) × 通胀系数 + 意外预留年分摊额
+    - 房贷/车贷还款：在剩余还款年限内每年计入（月还款额 × 12），超过年限后不再支出
     - 小孩教育支出：根据小孩当前年龄和 t 推算当年是否处于就学阶段
     - 意外预留：若为逐年均摊则每年固定金额（不参与通胀调整），若为一次性则在第 1 年计入
-  - 负债支出：若有负债，将负债按剩余年限均摊（或按输入的年还款额计入）
   - **当年净现金流** = 当年总收入 − 当年总支出
   - **年末净资产** = 年初净资产 × (1 + 资产收益率) + 当年净现金流
 
@@ -203,7 +206,7 @@
 #### 3.4.1 保存格式 (JSON)
 ```json
 {
-  "version": "1.0",
+  "version": "1.1",
   "save_time": "2026-06-07T12:00:00",
   "input": {
     "evaluation_mode": "couple",
@@ -214,9 +217,9 @@
     "assets": { ... },
     "liabilities": { ... },
     "income": { ... },
-    "monthly_expense": 15000,
+    "monthly_expense": 10000,
     "children": [ ... ],
-    "emergency_reserve": { "amount": 100000, "mode": "一次性扣除" },
+    "emergency_reserve": { "amount": 200000, "mode": "逐年均摊" },
     "params": { "inflation_rate": 0.02, "asset_return_rate": 0.02 }
   },
   "result": {
@@ -230,7 +233,7 @@
 ```
 
 #### 3.4.2 导出明细 (CSV/Excel)
-列：年份，你的年龄，配偶年龄，工资收入，房租收入，分红收入，其他收入，收入合计，生活支出，教育支出，意外支出，负债支出，支出合计，净现金流，年初净资产，年末净资产
+列：年份，你的年龄，配偶年龄，工资收入，房租收入，分红收入，其他收入，收入合计，生活支出，房贷支出，车贷支出，教育支出，意外支出，支出合计，净现金流，年初净资产，年末净资产
 
 #### 3.4.3 输入参数持久化
 
@@ -257,10 +260,23 @@
 - `life_expectancy: int`
 
 ### 4.2 FamilyFinance
-- `liquid_assets: dict` — 存款、现金、基金、股票
-- `fixed_assets: dict` — 房产、车辆、其他
-- `liabilities: dict` — 房贷、车贷、其他
-- `net_worth: float` — 自动计算
+- `deposit: float` — 存款
+- `cash: float` — 现金
+- `fund_value: float` — 基金
+- `stock_value: float` — 股票
+- `property_value: float` — 房产
+- `car_value: float` — 车辆
+- `other_assets: float` — 其他资产
+- `mortgage_balance: float` — 房贷余额
+- `car_loan_balance: float` — 车贷余额
+- `other_liabilities: float` — 其他负债
+- `mortgage_monthly: float` — 月房贷还款
+- `mortgage_years: int` — 房贷剩余年限
+- `car_loan_monthly: float` — 月车贷还款
+- `car_loan_years: int` — 车贷剩余年限
+- `total_assets: float` — 自动计算
+- `total_liabilities: float` — 自动计算
+- `net_worth: float` — 自动计算 = 总资产 - 总负债
 
 ### 4.3 Income
 - `salary_annual: float`
@@ -286,6 +302,11 @@
 - `net_cashflow: float`
 - `net_worth_start: float`
 - `net_worth_end: float`
+- `living_expense: float`
+- `mortgage_expense: float`
+- `car_loan_expense: float`
+- `education_expense: float`
+- `emergency_expense: float`
 
 ### 4.6 SimulationResult
 - `years: list[SimulationYear]`
@@ -332,8 +353,7 @@ FinFreedom/
 │   ├── __init__.py
 │   └── helpers.py           # 工具函数（通胀计算、年龄推算等）
 └── dist/
-    └── 财务自由评估/         # 打包后的可执行程序目录
-        └── 财务自由评估.exe
+    └── 财务自由评估.exe     # 单文件打包产物
 ```
 
 ### 各文件职责
@@ -342,7 +362,7 @@ FinFreedom/
 |------|------|
 | `app.py` | Streamlit 应用入口，组装各模块，管理页面布局和 session state |
 | `launcher.py` | PyInstaller 启动脚本，设置环境变量并引导 Streamlit 运行 |
-| `FinFreedom.spec` | PyInstaller 打包规范（onedir 模式，含所有依赖和静态文件） |
+| `FinFreedom.spec` | PyInstaller 打包规范（onefile 模式，含所有依赖和静态文件） |
 | `重打包.bat` | 一键清理+重新打包脚本 |
 | `modules/input_module.py` | 在侧边栏渲染所有输入表单，返回 `InputData` 等数据对象 |
 | `modules/calculator.py` | 接收输入数据，执行逐年模拟，返回 `SimulationResult` |
@@ -357,25 +377,19 @@ FinFreedom/
 
 ### 7.1 技术方案
 
-使用 **PyInstaller `onedir` 模式** 将 Python + Streamlit 应用打包为可执行目录。
+使用 **PyInstaller `onefile` 模式** 将 Python + Streamlit 应用打包为单个可执行文件。
 
 | 组件 | 说明 |
 |------|------|
 | 入口文件 | `launcher.py` — 设置环境变量、固定端口 3568、启动后自动打开浏览器 |
 | 打包配置 | `FinFreedom.spec` — 含 `collect_data_files('streamlit')`、`collect_submodules('streamlit')`、`copy_metadata` 等关键配置 |
 | 端口 | 3568（避免与其他服务冲突） |
-| 模式 | `onedir`（文件解压到 `_internal/`，Streamlit 可直接读取 `app.py`） |
+| 模式 | `onefile`（单文件 .exe 输出） |
 
-### 7.2 输出结构
+### 7.2 输出
 
 ```
-dist/财务自由评估/
-├── 财务自由评估.exe        ← 双击运行
-└── _internal/
-    ├── app.py
-    ├── modules/
-    ├── models/
-    └── utils/
+dist/财务自由评估.exe    ← 双击运行，单文件约 82 MB
 ```
 
 ### 7.3 重新打包

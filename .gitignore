@@ -25,6 +25,5 @@ env/
 Thumbs.db
 
 # Project specific
-*.spec
 *.zip
-*.bat
+FinFreedom_chat.md

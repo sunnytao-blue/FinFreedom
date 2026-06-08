@@ -13,6 +13,20 @@ def render_dashboard(result: SimulationResult, input_data: InputData):
 
 
 def render_summary_card(result: SimulationResult):
+    st.markdown("""
+    <style>
+        [data-testid="stMetricValue"] {
+            font-size: 1.4rem;
+        }
+        [data-testid="stMetricLabel"] {
+            font-size: 0.8rem;
+        }
+        [data-testid="stMetricDelta"] {
+            font-size: 0.8rem;
+        }
+    </style>
+    """, unsafe_allow_html=True)
+
     if result.years and result.is_financially_free:
         st.success("\u2705 恭喜！您已实现财务自由！")
     elif result.years:
@@ -30,15 +44,14 @@ def render_summary_card(result: SimulationResult):
         return
 
     total_years = len(result.years)
-    cols = st.columns(4)
+    cols = st.columns(6)
     cols[0].metric("初始净资产", f"{result.initial_net_worth:,.0f}")
-    cols[1].metric("模拟年限", f"{total_years} 年")
-    cols[2].metric("总收入", f"{result.total_income_all:,.0f}")
-    cols[3].metric("总支出", f"{result.total_expense_all:,.0f}")
-    cols2 = st.columns(2)
-    cols2[0].metric("最终净资产", f"{result.final_net_worth:,.0f}")
-    cols2[1].metric(
-        "累计净现金流",
+    cols[1].metric("最终净资产", f"{result.final_net_worth:,.0f}")
+    cols[2].metric("模拟年限", f"{total_years} 年")
+    cols[3].metric("总收入", f"{result.total_income_all:,.0f}")
+    cols[4].metric("总支出", f"{result.total_expense_all:,.0f}")
+    cols[5].metric(
+        "净现金流",
         f"{result.total_income_all - result.total_expense_all:,.0f}",
     )
 
@@ -58,7 +71,7 @@ def render_charts(result: SimulationResult):
                       title="净资产趋势")
         fig.add_hline(y=0, line_dash="dash", line_color="red",
                       annotation_text="盈亏线")
-        fig.update_layout(height=400)
+        fig.update_layout(height=350)
         st.plotly_chart(fig, width="stretch")
 
     with col2:
@@ -72,7 +85,7 @@ def render_charts(result: SimulationResult):
                              name="收入", marker_color="green"))
         fig.add_trace(go.Bar(x=df["年份"], y=df["支出（万）"],
                              name="支出", marker_color="red"))
-        fig.update_layout(barmode="group", title="年度收支对比", height=400)
+        fig.update_layout(barmode="group", title="年度收支对比", height=350)
         st.plotly_chart(fig, width="stretch")
 
 
@@ -88,6 +101,11 @@ def render_yearly_table(years: list[SimulationYear]):
             "年份": y.year,
             "年龄": y.person1_age,
             "配偶": y.person2_age if y.person2_age is not None else "\u2014",
+            "生活支出": y.living_expense,
+            "房贷支出": y.mortgage_expense,
+            "车贷支出": y.car_loan_expense,
+            "教育支出": y.education_expense,
+            "意外支出": y.emergency_expense,
             "收入合计": y.total_income,
             "支出合计": y.total_expense,
             "净现金流": y.net_cashflow,
@@ -100,7 +118,7 @@ def render_yearly_table(years: list[SimulationYear]):
     st.dataframe(
         df,
         width="stretch",
-        height=400,
+        height=350,
         column_config={
             "收入合计": st.column_config.NumberColumn(format="%.0f"),
             "支出合计": st.column_config.NumberColumn(format="%.0f"),

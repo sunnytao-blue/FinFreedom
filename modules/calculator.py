@@ -57,9 +57,20 @@ def run_simulation(input_data: InputData) -> SimulationResult:
 
         # --- 支出计算 ---
         living_exp = input_data.monthly_expense * 12 * inflate
+
+        # 房贷月供（年限内有效）
+        mortgage_annual = 0.0
+        if t < input_data.finance.mortgage_years:
+            mortgage_annual = input_data.finance.mortgage_monthly * 12 * inflate
+
+        # 车贷月供（年限内有效）
+        car_loan_annual = 0.0
+        if t < input_data.finance.car_loan_years:
+            car_loan_annual = input_data.finance.car_loan_monthly * 12 * inflate
+
         edu_exp = calculate_education_expense(input_data.children, age1, t) * inflate
         emerg_exp = emergency_one_time if (t == 0 and emergency_one_time > 0) else emergency_annual
-        total_expense = living_exp + edu_exp + emerg_exp
+        total_expense = living_exp + mortgage_annual + car_loan_annual + edu_exp + emerg_exp
 
         # --- 净资产 ---
         net_worth_start = net_worth
@@ -74,6 +85,8 @@ def run_simulation(input_data: InputData) -> SimulationResult:
             other_income=other_inc * inflate,
             total_income=total_income,
             living_expense=living_exp,
+            mortgage_expense=mortgage_annual,
+            car_loan_expense=car_loan_annual,
             education_expense=edu_exp,
             emergency_expense=emerg_exp,
             total_expense=total_expense,
